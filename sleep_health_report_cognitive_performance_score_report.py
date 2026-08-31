@@ -1,0 +1,549 @@
+"""
+睡眠健康與認知表現預測模型 — 分析報告 (Streamlit 版本)
+
+執行方式:
+    pip install streamlit
+    streamlit run report_app.py
+
+這個檔案把原本的 HTML 報告(amCharts + Chart.js 互動圖表、可排序表格)
+直接包在一個 iframe 元件裡顯示,所以報告裡所有的互動功能
+(下拉選單、表格排序、amCharts 圖表)都完整保留,不需要重寫。
+"""
+
+import streamlit as st
+import streamlit.components.v1 as components
+
+st.set_page_config(
+    page_title="睡眠健康與認知表現預測模型 — 分析報告",
+    layout="wide",
+)
+
+# 拿掉 Streamlit 頁面本身的邊界留白,讓報告從最上面開始顯示
+st.markdown(
+    """
+    <style>
+        .block-container {padding-top: 0rem; padding-bottom: 0rem; max-width: 100%;}
+        header {visibility: hidden;}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ---- 以下是完整的報告內容(HTML + CSS + JavaScript) ----
+REPORT_HTML = r"""<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>睡眠健康與認知表現預測模型 — 分析報告</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+<style>
+:root{
+  --bg:#F5F7FA;
+  --surface:#FFFFFF;
+  --border:#E1E7EF;
+  --ink:#16202E;
+  --body:#4B5768;
+  --muted:#8794A6;
+  --teal:#0F766E;
+  --teal-soft:#E6F3F1;
+  --amber:#C2650A;
+  --amber-soft:#FBEEE0;
+  --red:#B4373B;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);background:var(--bg);color:var(--body);line-height:1.65;font-size:15px;}
+.wrap{max-width:980px;margin:0 auto;padding:0 24px;}
+
+header.hero{background:linear-gradient(180deg,#101826 0%, #16202E 100%);color:#EAF0F6;padding:64px 0 48px;border-bottom:4px solid var(--teal);}
+.hero .eyebrow{font-family:var(--mono);font-size:12.5px;letter-spacing:.14em;text-transform:uppercase;color:#5EEAD4;margin-bottom:14px;}
+.hero h1{font-size:34px;font-weight:700;color:#FFFFFF;letter-spacing:-.01em;max-width:720px;margin-bottom:16px;}
+.hero p.lede{font-size:16px;color:#AEBACB;max-width:620px;}
+.hero .statrow{display:flex;gap:36px;margin-top:36px;flex-wrap:wrap;}
+.hero .stat .n{font-family:var(--mono);font-size:26px;font-weight:600;color:#5EEAD4;}
+.hero .stat .l{font-size:12.5px;color:#8C9AAE;margin-top:2px;}
+
+nav.toc{background:var(--surface);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50;}
+nav.toc .wrap{display:flex;gap:0;overflow-x:auto;}
+nav.toc a{font-family:var(--mono);font-size:12.5px;color:var(--muted);text-decoration:none;padding:14px 16px;white-space:nowrap;border-bottom:2px solid transparent;transition:.15s;}
+nav.toc a:hover{color:var(--teal);border-bottom-color:var(--teal);}
+
+section{padding:56px 0;border-bottom:1px solid var(--border);}
+section:last-of-type{border-bottom:none;}
+.sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:8px;}
+.sec-num{font-family:var(--mono);font-size:13px;color:var(--teal);font-weight:600;}
+.sec-title{font-size:23px;font-weight:700;color:var(--ink);letter-spacing:-.01em;}
+.sec-sub{color:var(--muted);font-size:14px;margin:6px 0 28px;max-width:640px;}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;}
+.grid2{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+@media(max-width:760px){.grid2,.grid3{grid-template-columns:1fr;}}
+
+.statbox{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px 18px;}
+.statbox .v{font-family:var(--mono);font-size:22px;font-weight:600;color:var(--ink);}
+.statbox .k{font-size:12px;color:var(--muted);margin-top:2px;}
+
+table{width:100%;border-collapse:collapse;font-size:13.5px;}
+th{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:9px 10px;border-bottom:2px solid var(--border);cursor:pointer;user-select:none;}
+th:hover{color:var(--teal);}
+th.num,td.num{text-align:right;font-family:var(--mono);}
+td{padding:9px 10px;border-bottom:1px solid var(--border);color:var(--body);}
+tr:hover td{background:var(--teal-soft);}
+.best-row td{background:var(--amber-soft);font-weight:600;color:var(--ink);}
+.top-row td{background:#FDE68A;font-weight:700;color:var(--ink);border-top:2px solid #D97706;border-bottom:2px solid #D97706;}
+.corr-bar-wrap{display:flex;align-items:center;gap:8px;}
+.corr-bar{height:8px;border-radius:2px;background:var(--teal);}
+.corr-bar.neg{background:var(--red);}
+.corr-track{flex:1;background:#EEF2F6;border-radius:2px;height:8px;position:relative;}
+
+.explorer-controls{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+select{font-family:var(--sans);font-size:14px;padding:9px 12px;border-radius:6px;border:1px solid var(--border);background:#fff;color:var(--ink);cursor:pointer;}
+.badge{font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:20px;background:var(--teal-soft);color:var(--teal);}
+.callout{border-left:3px solid var(--amber);background:var(--amber-soft);padding:14px 18px;border-radius:0 6px 6px 0;font-size:14px;color:#5C3A0E;margin:18px 0;}
+.callout.teal{border-left-color:var(--teal);background:var(--teal-soft);color:#0B4A44;}
+.callout b{font-weight:700;}
+code{font-family:var(--mono);background:#EEF2F6;padding:1px 6px;border-radius:4px;font-size:12.5px;color:var(--ink);}
+
+.pipeline-step{display:flex;gap:16px;padding:16px 0;border-bottom:1px dashed var(--border);}
+.pipeline-step:last-child{border-bottom:none;}
+.pipeline-step .idx{font-family:var(--mono);font-size:12px;color:var(--teal);flex-shrink:0;width:26px;padding-top:2px;}
+.pipeline-step .content h4{font-size:14.5px;color:var(--ink);margin-bottom:4px;}
+.pipeline-step .content p{font-size:13.5px;color:var(--body);}
+
+footer{padding:36px 0 60px;text-align:center;color:var(--muted);font-size:12.5px;}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow">分析報告 &nbsp;/&nbsp; Sleep Health → Cognitive Performance</div>
+    <h1>睡眠健康資料集：認知表現預測模型分析報告</h1>
+     <p class="lede">從資料觀察、特徵工程到模型比較的完整分析歷程。從個人信息、生活心理、工作狀況、睡眠型態等資料中，分析認知表現分數。</p> 
+     <div class="statrow">
+      <div class="stat"><div class="n" id="hero-n">—</div><div class="l">樣本數</div></div>
+      <div class="stat"><div class="n" id="hero-mean">—</div><div class="l">目標變數平均值</div></div>
+      <div class="stat"><div class="n" id="hero-std">—</div><div class="l">目標變數標準差</div></div>
+      <div class="stat"><div class="n">0.934</div><div class="l">最佳模型 Test R²</div></div>
+    </div>
+  </div>
+</header>
+
+<nav class="toc">
+  <div class="wrap">
+    <a href="#s1">01 目標變數分布</a>
+    <a href="#s2">02 變數觀察</a>
+    <a href="#s3">03 特徵工程</a>
+    <a href="#s4">04 資料清洗</a>
+    <a href="#s5">05 模型比較</a>
+    <a href="#s6">06 誤差門檻</a>
+  </div>
+</nav>
+
+<div class="wrap">
+
+<section id="s1">
+  <div class="sec-head"><span class="sec-num">01</span><span class="sec-title">目標變數 Y 的資料分布</span></div>
+  <p class="sec-sub">在做任何建模之前，先確認預測目標 <code>cognitive_performance_score</code> 本身的分布形狀 — 是否對稱、有沒有離群值或多峰現象，這會影響後續選擇評估指標與模型的假設是否合理。</p>
+  <div class="grid2">
+    <div class="card"><div id="yHistChart" style="width:100%;height:280px;"></div></div>
+    <div class="grid3" style="grid-template-columns:1fr 1fr;align-content:start;gap:12px;">
+      <div class="statbox"><div class="v" id="st-mean">—</div><div class="k">平均值 Mean</div></div>
+      <div class="statbox"><div class="v" id="st-median">—</div><div class="k">中位數 Median</div></div>
+      <div class="statbox"><div class="v" id="st-std">—</div><div class="k">標準差 SD</div></div>
+      <div class="statbox"><div class="v" id="st-skew">—</div><div class="k">偏態係數 Skewness</div></div>
+      <div class="statbox"><div class="v" id="st-min">—</div><div class="k">最小值</div></div>
+      <div class="statbox"><div class="v" id="st-max">—</div><div class="k">最大值</div></div>
+    </div>
+  </div>
+  <div class="callout teal"><b>觀察重點：</b>目標變數分布是否接近常態、有無明顯偏態 — 這是後續選擇 MAE / RMSE / 分類式命中率哪個指標最合適的依據，也是第 06 節誤差門檻分析的統計基礎。</div>
+</section>
+
+<section id="s2">
+  <div class="sec-head"><span class="sec-num">02</span><span class="sec-title">各變數與目標的關係觀察</span></div>
+  <p class="sec-sub">左側是全部特徵與目標變數的線性相關係數表；點一下「相關係數」欄名可切換成依原始數值高到低排序。右側是互動探索圖 — 選一個變數，看它跟目標變數的關係形狀是線性、還是有轉折。</p>
+  <div class="grid2">
+    <div class="card" style="max-height:480px;overflow-y:auto;">
+      <table id="corrTable">
+        <thead><tr><th onclick="sortCorr('feature')">特徵</th><th class="num" onclick="sortCorr('corr')">相關係數</th><th>強度</th></tr></thead>
+        <tbody id="corrTbody"></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <div class="explorer-controls"><select id="varSelect"></select><span class="badge" id="varBadge">—</span></div>
+      <canvas id="explorerChart" height="260"></canvas>
+    </div>
+  </div>
+  <div class="callout"><b>案例發現：</b>用這個互動圖檢查 <code>sleep_duration_hrs</code>（睡眠時數）時，會看到平均分數先隨時數上升、在偏長區間到達高點後又明顯下滑 — 呈現「倒 U 型」而非直線關係。這個發現直接促成了第 03 節平方項特徵的加入。試著在左邊選這個變數看看。</div>
+</section>
+
+<section id="s3">
+  <div class="sec-head"><span class="sec-num">03</span><span class="sec-title">特徵工程：評估方法與最終決策</span></div>
+  <p class="sec-sub">新特徵的評估方式:「控制住既有特徵後，加入候選特徵能帶來多少 R² 邊際提升」。下表依邊際增益由高到低排列。</p>
+  <div class="card" style="margin-bottom:20px;">
+    <h4 style="font-size:14.5px;color:var(--ink);margin-bottom:10px;">評估方法</h4>
+    <div class="pipeline-step"><div class="idx">1</div><div class="content"><h4>建立基準模型</h4><p>用全部既有特徵訓練一個加法線性模型，取得基準 R²。</p></div></div>
+    <div class="pipeline-step"><div class="idx">2</div><div class="content"><h4>逐一測試候選項</h4><p>每次只加入一個候選特徵（兩兩交互乘積項，或單一特徵的平方項），重新訓練並比較 R² 提升量。</p></div></div>
+    <div class="pipeline-step"><div class="idx">3</div><div class="content"><h4>排序並設定取捨門檻</h4><p>依 R² 邊際增益排序，只保留增益顯著高於雜訊水準的候選項，其餘捨棄。</p></div></div>
+  </div>
+  <table>
+    <thead><tr><th>特徵</th><th>說明</th><th>類型</th><th class="num">R² 邊際增益</th><th>決策</th></tr></thead>
+    <tbody id="featEngTbody"></tbody>
+  </table>
+  <div class="callout teal" style="margin-top:18px;"><b>結論：</b>單一特徵的非線性項（<code>duration_squared</code>）增益達 0.0137，是這輪特徵工程單項貢獻最大的發現，比全部 4 個二元交互作用項加總還大；二元交互作用的訊號在測完約190組候選配對後已大致挖盡（剩餘最大增益僅 0.0022）。</div>
+</section>
+
+<section id="s4">
+  <div class="sec-head"><span class="sec-num">04</span><span class="sec-title">資料清洗：編碼與縮放</span></div>
+  <p class="sec-sub">把原始欄位轉換成模型可用的數值特徵，兩類處理方式分開說明。</p>
+  <div class="grid2">
+    <div class="card">
+      <h4 style="font-size:14.5px;color:var(--ink);margin-bottom:14px;">類別變數 → One-Hot Encoding</h4>
+      <table>
+        <thead><tr><th>原始欄位</th><th>處理方式</th><th class="num">展開欄位數</th></tr></thead>
+        <tbody>
+          <tr><td>gender</td><td>直接展開</td><td class="num">3</td></tr>
+          <tr><td>occupation</td><td>12 個原始類別直接展開(不分組)</td><td class="num">12</td></tr>
+          <tr><td>country</td><td>先轉換為洲別，再展開</td><td class="num">5</td></tr>
+          <tr><td>chronotype</td><td>直接展開</td><td class="num">3</td></tr>
+          <tr><td>mental_health_condition</td><td>拆成 Anxiety / Depression 兩個二元旗標</td><td class="num">2</td></tr>
+          <tr><td>season</td><td>One-Hot 展開為 4 欄</td><td class="num">4</td></tr>
+          <tr><td>day_type</td><td>直接展開</td><td class="num">2</td></tr>
+          <tr><td>sleep_disorder_risk</td><td>序位編碼(Healthy=0 … Severe=3)</td><td class="num">1</td></tr>
+        </tbody>
+      </table>
+      
+    </div>
+    <div class="card">
+      <h4 style="font-size:14.5px;color:var(--ink);margin-bottom:14px;">連續變數 → Z-score + 縮放</h4>
+      <p style="font-size:13.5px;margin-bottom:12px;">一般連續欄位：<code>(x - mean) / std</code> 得到 Z-score，再線性映射到 <code>[0.2, 0.8]</code> 區間，避免極端值落在 0/1 邊界。</p>
+      <p style="font-size:13.5px;margin-bottom:12px;"><b>零膨脹欄位</b>（咖啡因、酒精攝取量、午睡時長）：先拆出「是否攝取／是否午睡」二元旗標，只對「數值 &gt; 0」的子集合做 Z-score 縮放，避免大量 0 值扭曲分布。</p>
+      <p style="font-size:13.5px;margin-bottom:12px;"><b>離群值封頂欄位</b>（睡前螢幕時間）：與零膨脹欄位處理方式不同，不另建二元旗標；改為將 <code>&gt; 170 分鐘</code>的樣本直接封頂為縮放後的最大值 <code>1.0</code>，其餘正常範圍才做 Z-score 縮放。</p>
+      <p style="font-size:13.5px;"><b>目標變數 <code>cognitive_performance_score</code></b>：刻意保持原始分布，不做縮放或壓縮 — 程式註解原文：「取消對預測目標進行 0.2~0.8 的極限壓縮，否則會極大地破壞損失函數的反向傳播」，只轉型為浮點數。</p>
+    </div>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="sec-head"><span class="sec-num">05</span><span class="sec-title">模型結果比較</span></div>
+  <p class="sec-sub">version_3 特徵集（含平方項與交互作用特徵）下，每個模型「表現最好的一組結果」。省略參數細節，聚焦在模型間的相對表現。點欄名可排序。</p>
+  <div class="card">
+    <table id="modelTable">
+      <thead>
+        <tr>
+          <th onclick="sortModel('model')">模型</th>
+          <th class="num" onclick="sortModel('test_mae')">Test MAE</th>
+          <th class="num" onclick="sortModel('test_acc')">Test Acc(±5)</th>
+          <th class="num" onclick="sortModel('test_r2')">Test R²</th>
+        </tr>
+      </thead>
+      <tbody id="modelTbody"></tbody>
+    </table>
+  </div>
+  <p style="font-size:12px;color:var(--muted);margin-top:10px;">標色列為整體最佳結果。MLPRegressor 的 Test MAE 因原始資料格式問題無法還原，顯示為「—」，不影響 R² / Acc 的判讀。</p>
+  <div style="margin-top:24px;display:flex;flex-direction:column;gap:20px;">
+    <div class="card">
+      <h4 style="font-size:14.5px;color:var(--ink);margin-bottom:12px;">各模型 Test MAE 比較(越低越好)</h4>
+      <div id="maeChart" style="width:100%;height:380px;"></div>
+    </div>
+    <div class="card">
+      <h4 style="font-size:14.5px;color:var(--ink);margin-bottom:12px;">各模型 Test Acc(±5)比較(越高越好)</h4>
+      <div id="accChart" style="width:100%;height:380px;"></div>
+    </div>
+    <div class="card">
+      <h4 style="font-size:14.5px;color:var(--ink);margin-bottom:12px;">各模型 Test R² 比較(越高越好)</h4>
+      <div id="r2Chart" style="width:100%;height:380px;"></div>
+    </div>
+  </div>
+    <div class="callout teal" style="margin-top:20px;">
+    <b>模型選擇結論：</b>若以正確率(Test Acc)為主要依據，<b>XGBoost</b>(62.11%)是目前表現最好的單一模型；但若同時參考 MAE(4.551 vs 4.560)與 R²(0.9342 vs 0.9338)，<b>Stacking</b> 融合模型幾乎在同一個水準，兩者差距在雜訊等級內，可視為並列最佳——實務上選 XGBoost 的理由是結構更簡單、不需要額外訓練三個 base model 再融合，維護成本較低。
+  </div>
+</section>
+
+<section id="s6">
+  <div class="sec-head"><span class="sec-num">06</span><span class="sec-title">誤差容忍範圍如何影響「準確率」</span></div>
+  <p class="sec-sub">Acc(±5) 卡在 62% 左右，不代表模型能力的天花板 — 這是評估門檻選在誤差分布最陡處所致，以下用實際模型的誤差分布還原這個現象。</p>
+  <div class="grid2">
+    <div class="card"><canvas id="toleranceChart" height="240"></canvas></div>
+    <div class="card">
+      <h4 style="font-size:14.5px;color:var(--ink);margin-bottom:10px;">關鍵區別</h4>
+      <p style="font-size:13.5px;margin-bottom:10px;"><b>目標變數 Y 的母體標準差</b>（人與人之間本來就有多不一樣）：約 <code id="pop-std">22.3</code> 分。</p>
+      <p style="font-size:13.5px;margin-bottom:10px;"><b>模型預測誤差的標準差</b>（模型每次「猜錯多少」的離散程度，由最佳模型 Test MAE 反推）：約 <code>5.71</code> 分。</p>
+      <div class="callout" style="margin-top:16px;"><b>±5</b> ≈ 0.88 個誤差標準差 → 理論命中率 <b>61.9%</b>，實測 <b>62.07%</b><br><b>±10</b> ≈ 1.75 個誤差標準差 → 理論命中率 <b>92.0%</b>，實測 <b>91.88%</b></div>
+      <p style="font-size:13px;color:var(--muted);margin-top:10px;">理論值與實測值高度吻合，代表模型誤差分布接近常態，沒有厚尾或異常子群體。</p>
+    </div>
+  </div>
+  <div class="callout teal" style="margin-top:20px;"><b>建議寫法：</b>若 ±5 沒有明確業務理由，報告時建議同時呈現 R²、MAE 與多個容忍範圍下的命中率（如 ±5、±10），而不是只放單一 acc(±5) 數字 — 避免因門檻剛好落在分布最陡處而低估模型實際表現。</div>
+</section>
+
+</div>
+
+<footer>報告模板 · 資料集：sleep_health（version_3, n=100,000）· 產生方式：實際計算結果，非示意資料</footer>
+
+<script>
+const REPORT_DATA = {"y_stats": {"mean": 59.23, "std": 22.25, "min": 0.0, "max": 100.0, "median": 60.4, "skew": -0.29, "n": 100000}, "y_hist": {"bin_edges": [0.0, 4.17, 8.33, 12.5, 16.67, 20.83, 25.0, 29.17, 33.33, 37.5, 41.67, 45.83, 50.0, 54.17, 58.33, 62.5, 66.67, 70.83, 75.0, 79.17, 83.33, 87.5, 91.67, 95.83, 100.0], "counts": [1054, 605, 855, 1193, 1634, 1966, 2729, 3345, 3904, 4633, 5338, 5906, 6520, 6876, 6963, 6892, 6936, 6473, 6055, 5264, 4373, 3605, 2650, 4231]}, "corr_table": [{"feature": "sleep_quality_score", "corr": 0.86}, {"feature": "quality_x_duration", "corr": 0.8188}, {"feature": "total_restful_sleep", "corr": 0.7453}, {"feature": "stress_sleep_ratio", "corr": -0.7236}, {"feature": "sleep_disorder_risk", "corr": -0.7038}, {"feature": "sleep_duration_hrs", "corr": 0.6182}, {"feature": "stress_score", "corr": -0.5926}, {"feature": "duration_squared", "corr": 0.5764}, {"feature": "duration_x_felt_rested", "corr": 0.4779}, {"feature": "felt_rested", "corr": 0.4515}, {"feature": "rem_percentage", "corr": 0.446}, {"feature": "work_hours_that_day", "corr": -0.3459}, {"feature": "mental_health_condition_Depression", "corr": -0.336}, {"feature": "day_type_Weekday", "corr": -0.3064}, {"feature": "day_type_Weekend", "corr": 0.3064}, {"feature": "wake_episodes_per_night", "corr": -0.2947}, {"feature": "mental_health_condition_Anxiety", "corr": -0.2846}, {"feature": "deep_sleep_percentage", "corr": 0.2804}, {"feature": "exercise_day", "corr": 0.2547}, {"feature": "shift_work", "corr": -0.2544}, {"feature": "occupation_Retired", "corr": 0.2505}, {"feature": "alcohol_units_before_bed", "corr": -0.2388}, {"feature": "sleep_latency_mins", "corr": -0.2252}, {"feature": "has_alcohol", "corr": -0.2044}, {"feature": "occupation_Nurse", "corr": -0.1594}, {"feature": "duration_x_stress", "corr": -0.1581}, {"feature": "steps_that_day", "corr": 0.135}, {"feature": "occupation_Freelancer", "corr": 0.13}, {"feature": "occupation_Homemaker", "corr": 0.1257}, {"feature": "occupation_Lawyer", "corr": -0.1257}, {"feature": "occupation_Doctor", "corr": -0.1139}, {"feature": "duration_x_work_hours", "corr": -0.1067}, {"feature": "occupation_Driver", "corr": -0.0996}, {"feature": "heart_rate_resting_bpm", "corr": -0.0907}, {"feature": "bedtime_stimulation", "corr": -0.0784}, {"feature": "age", "corr": -0.0678}, {"feature": "occupation_Student", "corr": -0.0671}, {"feature": "caffeine_mg_before_bed", "corr": -0.0636}, {"feature": "occupation_Teacher", "corr": 0.0561}, {"feature": "occupation_Software_Engineer", "corr": 0.0534}, {"feature": "has_caffeine", "corr": -0.0505}, {"feature": "sleep_aid_used", "corr": 0.0469}, {"feature": "screen_time_before_bed_mins", "corr": -0.0422}, {"feature": "bmi", "corr": -0.0371}, {"feature": "chronotype_Evening", "corr": -0.0368}, {"feature": "occupation_Manager", "corr": -0.0264}, {"feature": "chronotype_Morning", "corr": 0.0257}, {"feature": "nap_duration_mins", "corr": -0.0159}, {"feature": "occupation_Sales", "corr": 0.0115}, {"feature": "chronotype_Neutral", "corr": 0.0114}, {"feature": "room_temperature_celsius", "corr": -0.0093}, {"feature": "has_nap", "corr": -0.0083}, {"feature": "country_North America", "corr": 0.0047}, {"feature": "country_South America", "corr": -0.0038}, {"feature": "country_Europe", "corr": -0.0037}, {"feature": "season_Spring", "corr": -0.0033}, {"feature": "weekend_sleep_diff_hrs", "corr": -0.0031}, {"feature": "season_Summer", "corr": 0.0026}, {"feature": "gender_Other", "corr": 0.0019}, {"feature": "season_Autumn", "corr": 0.0016}, {"feature": "country_Oceania", "corr": 0.0013}, {"feature": "season_Winter", "corr": -0.0009}, {"feature": "country_Asia", "corr": 0.0005}, {"feature": "gender_Female", "corr": -0.0003}, {"feature": "gender_Male", "corr": -0.0002}], "binned_data": {"sleep_duration_hrs": {"labels": ["0.20~0.35", "0.35~0.39", "0.39~0.42", "0.42~0.44", "0.44~0.47", "0.47~0.50", "0.50~0.53", "0.53~0.56", "0.56~0.61", "0.61~0.80"], "means": [30.08, 41.29, 46.92, 51.99, 61.62, 65.12, 69.74, 77.05, 77.71, 71.23]}, "sleep_quality_score": {"labels": ["0.20~0.33", "0.33~0.37", "0.37~0.40", "0.40~0.43", "0.43~0.46", "0.46~0.49", "0.49~0.51", "0.51~0.55", "0.55~0.59", "0.59~0.80"], "means": [24.76, 38.28, 45.72, 52.44, 58.28, 63.87, 69.0, 74.47, 80.76, 88.99]}, "stress_score": {"labels": ["0.20~0.38", "0.38~0.43", "0.43~0.47", "0.47~0.49", "0.49~0.52", "0.52~0.55", "0.55~0.57", "0.57~0.61", "0.61~0.65", "0.65~0.80"], "means": [80.23, 73.36, 69.12, 64.14, 60.82, 58.54, 54.85, 50.83, 41.96, 34.2]}, "age": {"labels": ["0.20~0.23", "0.23~0.27", "0.27~0.31", "0.31~0.34", "0.34~0.38", "0.38~0.42", "0.42~0.46", "0.46~0.51", "0.51~0.58", "0.58~0.80"], "means": [61.34, 60.53, 60.64, 59.92, 59.58, 59.24, 58.78, 58.15, 57.53, 56.09]}, "bmi": {"labels": ["0.20~0.29", "0.29~0.33", "0.33~0.36", "0.36~0.39", "0.39~0.41", "0.41~0.44", "0.44~0.46", "0.46~0.49", "0.49~0.53", "0.53~0.80"], "means": [60.19, 59.95, 60.07, 59.88, 59.87, 59.28, 58.94, 58.54, 57.83, 57.61]}, "rem_percentage": {"labels": ["0.20~0.37", "0.37~0.42", "0.42~0.46", "0.46~0.48", "0.48~0.51", "0.51~0.54", "0.54~0.56", "0.56~0.59", "0.59~0.64", "0.64~0.80"], "means": [40.24, 48.6, 53.17, 56.16, 58.91, 61.42, 64.06, 66.48, 69.61, 74.84]}, "deep_sleep_percentage": {"labels": ["0.20~0.43", "0.43~0.48", "0.48~0.51", "0.51~0.54", "0.54~0.57", "0.57~0.59", "0.59~0.62", "0.62~0.65", "0.65~0.70", "0.70~0.80"], "means": [48.29, 52.76, 55.0, 56.84, 58.67, 60.03, 61.96, 63.49, 65.74, 70.12]}, "sleep_latency_mins": {"labels": ["0.20~0.29", "0.29~0.33", "0.33~0.36", "0.36~0.38", "0.38~0.39", "0.39~0.41", "0.41~0.44", "0.44~0.46", "0.46~0.51", "0.51~0.80"], "means": [67.63, 64.35, 62.24, 60.5, 59.46, 58.43, 57.32, 55.9, 54.03, 49.51]}, "wake_episodes_per_night": {"labels": ["0.20~0.28", "0.28~0.35", "0.35~0.42", "0.42~0.50", "0.50~0.57", "0.57~0.65", "0.65~0.80"], "means": [68.11, 63.87, 60.34, 56.96, 53.65, 50.32, 45.13]}, "work_hours_that_day": {"labels": ["0.20~0.27", "0.27~0.34", "0.34~0.38", "0.38~0.41", "0.41~0.45", "0.45~0.48", "0.48~0.51", "0.51~0.54", "0.54~0.58", "0.58~0.80"], "means": [74.13, 66.25, 63.33, 62.21, 60.55, 58.31, 55.9, 53.65, 50.25, 46.41]}, "heart_rate_resting_bpm": {"labels": ["0.20~0.33", "0.33~0.37", "0.37~0.40", "0.40~0.42", "0.42~0.44", "0.44~0.46", "0.46~0.48", "0.48~0.51", "0.51~0.54", "0.54~0.80"], "means": [62.67, 61.51, 60.53, 59.65, 59.6, 58.56, 58.18, 57.85, 56.62, 55.61]}, "screen_time_before_bed_mins": {"labels": ["0.20~0.26", "0.26~0.29", "0.29~0.31", "0.31~0.34", "0.34~0.38", "0.38~0.41", "0.41~0.46", "0.46~0.53", "0.53~0.67", "0.67~1.00"], "means": [62.18, 60.48, 59.71, 59.22, 58.66, 58.74, 58.46, 58.59, 58.35, 57.61]}, "steps_that_day": {"labels": ["0.20~0.28", "0.28~0.32", "0.32~0.36", "0.36~0.39", "0.39~0.41", "0.41~0.44", "0.44~0.47", "0.47~0.51", "0.51~0.56", "0.56~0.80"], "means": [54.79, 55.75, 56.29, 57.76, 58.55, 59.59, 60.79, 61.3, 63.23, 64.22]}, "weekend_sleep_diff_hrs": {"labels": ["0.20~0.38", "0.38~0.43", "0.43~0.47", "0.47~0.50", "0.50~0.53", "0.53~0.56", "0.56~0.59", "0.59~0.63", "0.63~0.69", "0.69~0.80"], "means": [59.52, 59.41, 59.31, 59.29, 58.79, 58.86, 59.28, 59.41, 59.11, 59.31]}, "felt_rested": {"labels": ["0", "1"], "means": [51.19, 71.79]}, "sleep_disorder_risk": {"labels": ["0", "1", "2", "3"], "means": [72.35, 49.46, 32.71, 19.04]}, "shift_work": {"labels": ["0", "1"], "means": [60.95, 40.59]}, "mental_health_condition_Anxiety": {"labels": ["0", "1"], "means": [62.41, 46.62]}, "mental_health_condition_Depression": {"labels": ["0", "1"], "means": [62.35, 41.34]}, "duration_squared": {"labels": ["0.20~0.28", "0.28~0.32", "0.32~0.34", "0.34~0.36", "0.36~0.39", "0.39~0.41", "0.41~0.44", "0.44~0.48", "0.48~0.54", "0.54~0.80"], "means": [30.08, 41.29, 46.92, 51.99, 61.62, 65.12, 69.74, 77.05, 77.71, 71.23]}, "total_restful_sleep": {"labels": ["0.20~0.34", "0.34~0.37", "0.37~0.39", "0.39~0.41", "0.41~0.43", "0.43~0.45", "0.45~0.47", "0.47~0.50", "0.50~0.54", "0.54~0.80"], "means": [25.28, 39.28, 47.06, 53.44, 59.05, 64.19, 69.39, 74.22, 78.98, 81.39]}, "stress_sleep_ratio": {"labels": ["0.20~0.27", "0.27~0.30", "0.30~0.32", "0.32~0.34", "0.34~0.35", "0.35~0.37", "0.37~0.39", "0.39~0.41", "0.41~0.46", "0.46~0.80"], "means": [81.21, 76.53, 72.11, 68.6, 64.62, 59.74, 54.06, 47.45, 40.35, 27.59]}, "duration_x_work_hours": {"labels": ["0.20~0.27", "0.27~0.31", "0.31~0.35", "0.35~0.37", "0.37~0.40", "0.40~0.42", "0.42~0.44", "0.44~0.47", "0.47~0.51", "0.51~0.80"], "means": [71.57, 60.25, 57.99, 56.25, 55.87, 56.24, 56.69, 58.13, 58.89, 60.39]}, "duration_x_stress": {"labels": ["0.20~0.34", "0.34~0.37", "0.37~0.39", "0.39~0.40", "0.40~0.42", "0.42~0.44", "0.44~0.46", "0.46~0.48", "0.48~0.51", "0.51~0.80"], "means": [71.59, 59.22, 57.8, 58.03, 57.68, 58.15, 57.43, 58.44, 58.51, 55.43]}, "quality_x_duration": {"labels": ["0.20~0.28", "0.28~0.30", "0.30~0.33", "0.33~0.36", "0.36~0.38", "0.38~0.41", "0.41~0.44", "0.44~0.48", "0.48~0.52", "0.52~0.80"], "means": [22.54, 38.0, 46.28, 52.87, 58.51, 64.3, 69.55, 74.68, 80.01, 85.55]}, "duration_x_felt_rested": {"labels": ["0.20~0.56", "0.56~0.60", "0.60~0.65", "0.65~0.80"], "means": [52.08, 71.25, 80.39, 76.25]}}};
+const MODEL_RESULTS = [{"model": "Stacking", "test_mae": 4.551, "test_acc": 62.1, "test_r2": 0.9342}, {"model": "XGBoost", "test_mae": 4.56, "test_acc": 62.11, "test_r2": 0.9338}, {"model": "LightGBM", "test_mae": 4.56, "test_acc": 62.0, "test_r2": 0.9338}, {"model": "MLPRegressor", "test_mae": null, "test_acc": 62.07, "test_r2": 0.9332}, {"model": "Linear Regression", "test_mae": 4.673, "test_acc": 60.5, "test_r2": 0.9307}, {"model": "Ridge", "test_mae": 4.673, "test_acc": 60.49, "test_r2": 0.9307}, {"model": "SVR (Linear)", "test_mae": 4.677, "test_acc": 60.38, "test_r2": 0.9306}, {"model": "Keras DNN", "test_mae": 4.764, "test_acc": 60.2, "test_r2": 0.9277}, {"model": "SVR (RBF)", "test_mae": 4.843, "test_acc": 59.23, "test_r2": 0.9257}, {"model": "SVR (Poly)", "test_mae": 5.22, "test_acc": 55.54, "test_r2": 0.914}, {"model": "KNN (Distance)", "test_mae": 8.448, "test_acc": 36.22, "test_r2": 0.7762}, {"model": "KNN (Uniform)", "test_mae": 8.468, "test_acc": 36.02, "test_r2": 0.7752}];
+const FEATURE_ENG = [{"feature": "duration_squared", "desc": "睡眠時數的平方項(倒U型非線性)", "type": "單一特徵非線性", "gain": 0.0137, "decision": "採用"}, {"feature": "duration_x_work_hours", "desc": "睡眠時數 × 工時", "type": "二元交互作用", "gain": 0.0053, "decision": "採用"}, {"feature": "duration_x_stress", "desc": "睡眠時數 × 壓力分數", "type": "二元交互作用", "gain": 0.005, "decision": "採用"}, {"feature": "quality_x_duration", "desc": "睡眠品質 × 睡眠時數", "type": "二元交互作用", "gain": 0.0041, "decision": "採用"}, {"feature": "duration_x_felt_rested", "desc": "睡眠時數 × 主觀疲累感", "type": "二元交互作用", "gain": 0.0032, "decision": "採用"}, {"feature": "(其餘186組候選交互作用)", "desc": "擴大候選池後測試的其餘配對", "type": "二元交互作用", "gain": 0.0022, "decision": "捨棄(增益過小)"}];
+
+const VAR_LABELS = {
+  sleep_duration_hrs:"睡眠時數", sleep_quality_score:"睡眠品質分數", stress_score:"壓力分數",
+  age:"年齡", bmi:"BMI", rem_percentage:"REM 睡眠比例", deep_sleep_percentage:"深層睡眠比例",
+  sleep_latency_mins:"入睡所需時間", wake_episodes_per_night:"夜間醒來次數", work_hours_that_day:"當日工時",
+  heart_rate_resting_bpm:"靜止心率", screen_time_before_bed_mins:"睡前螢幕時間", steps_that_day:"當日步數",
+  weekend_sleep_diff_hrs:"週末睡眠時數差", felt_rested:"主觀疲累感", sleep_disorder_risk:"睡眠障礙風險等級",
+  shift_work:"是否輪班", mental_health_condition_Anxiety:"是否有焦慮症狀", mental_health_condition_Depression:"是否有憂鬱症狀",
+  duration_squared:"睡眠時數平方項", total_restful_sleep:"實質優質睡眠時間", stress_sleep_ratio:"壓力睡眠比",
+  duration_x_work_hours:"睡眠時數×工時", duration_x_stress:"睡眠時數×壓力", quality_x_duration:"睡眠品質×睡眠時數",
+  duration_x_felt_rested:"睡眠時數×疲累感", bedtime_stimulation:"睡前刺激指數",
+  country_Asia:"國家(亞洲)", country_Europe:"國家(歐洲)", "country_North America":"國家(北美)",
+  country_Oceania:"國家(大洋洲)", "country_South America":"國家(南美)"
+};
+
+const ys = REPORT_DATA.y_stats;
+document.getElementById('hero-n').textContent = ys.n.toLocaleString();
+document.getElementById('hero-mean').textContent = ys.mean.toFixed(1);
+document.getElementById('hero-std').textContent = ys.std.toFixed(1);
+document.getElementById('st-mean').textContent = ys.mean.toFixed(1);
+document.getElementById('st-median').textContent = ys.median;
+document.getElementById('st-std').textContent = ys.std.toFixed(1);
+document.getElementById('st-skew').textContent = ys.skew;
+document.getElementById('st-min').textContent = ys.min;
+document.getElementById('st-max').textContent = ys.max;
+
+am5.ready(function() {
+  var root = am5.Root.new("yHistChart");
+  root.setThemes([am5themes_Animated.new(root)]);
+
+  var chart = root.container.children.push(am5xy.XYChart.new(root, {
+    panX: false, panY: false, wheelX: "panX", wheelY: "zoomX",
+    layout: root.verticalLayout
+  }));
+
+  var cursor = chart.set("cursor", am5xy.XYCursor.new(root, {}));
+  cursor.lineY.set("visible", false);
+
+  var xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 12 });
+  xRenderer.labels.template.setAll({
+    rotation: -90, centerY: am5.p50, centerX: am5.p100, paddingRight: 15, fontSize: 10
+  });
+  xRenderer.grid.template.setAll({ location: 1 });
+
+  var xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+    categoryField: "category", renderer: xRenderer, tooltip: am5.Tooltip.new(root, {})
+  }));
+
+  var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, {
+    renderer: am5xy.AxisRendererY.new(root, {})
+  }));
+
+  var series = chart.series.push(am5xy.ColumnSeries.new(root, {
+    name: "樣本數", xAxis: xAxis, yAxis: yAxis,
+    valueYField: "value", categoryXField: "category",
+    tooltip: am5.Tooltip.new(root, { labelText: "{categoryX}: {valueY} 人" })
+  }));
+
+  series.columns.template.setAll({ cornerRadiusTL: 4, cornerRadiusTR: 4, strokeOpacity: 0 });
+  var totalBars = REPORT_DATA.y_hist.counts.length;
+series.columns.template.adapters.add("fill", function(fill, target) {
+  var idx = series.columns.indexOf(target);
+  var t = idx / (totalBars - 1);
+  var orange = am5.color(0xF97316);
+  var yellow = am5.color(0xFACC15);
+  var green  = am5.color(0x16A34A);
+  if (t < 0.5) {
+    return am5.Color.interpolate(t / 0.5, orange, yellow);
+  } else {
+    return am5.Color.interpolate((t - 0.5) / 0.5, yellow, green);
+  }
+});
+
+  var histData = REPORT_DATA.y_hist.bin_edges.slice(0,-1).map((v,i)=>({
+    category: Math.round(v)+"–"+Math.round(REPORT_DATA.y_hist.bin_edges[i+1]),
+    value: REPORT_DATA.y_hist.counts[i]
+  }));
+  xAxis.data.setAll(histData);
+  series.data.setAll(histData);
+
+  series.appear(1000);
+  chart.appear(1000, 100);
+});
+
+let corrSort = {key:'corr', dir:-1, abs:false};
+function renderCorr(){
+  const tbody = document.getElementById('corrTbody');
+  tbody.innerHTML = '';
+  const sorted = [...REPORT_DATA.corr_table].sort((a,b)=>{
+    let av = corrSort.abs ? Math.abs(a[corrSort.key]) : a[corrSort.key];
+    let bv = corrSort.abs ? Math.abs(b[corrSort.key]) : b[corrSort.key];
+    if(typeof av === 'string') return corrSort.dir*av.localeCompare(bv);
+    return corrSort.dir*(bv-av);
+  });
+  for(const row of sorted){
+    const pct = Math.min(100, Math.abs(row.corr)*100);
+    const cls = row.corr < 0 ? 'neg' : '';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${VAR_LABELS[row.feature]||row.feature}</td><td class="num">${row.corr.toFixed(4)}</td>
+      <td><div class="corr-bar-wrap"><div class="corr-track"><div class="corr-bar ${cls}" style="width:${pct}%"></div></div></div></td>`;
+    tbody.appendChild(tr);
+  }
+}
+function sortCorr(key){
+  if(key==='corr'){
+    if(!corrSort.abs){ corrSort.dir *= -1; }
+    corrSort.abs = false;
+  } else {
+    corrSort.key = key; corrSort.dir = -1; corrSort.abs = false;
+  }
+  renderCorr();
+}
+function resetCorrSort(){ corrSort = {key:'corr', dir:-1, abs:true}; renderCorr(); }
+renderCorr();
+
+const varSelect = document.getElementById('varSelect');
+const varKeys = Object.keys(REPORT_DATA.binned_data);
+for(const k of varKeys){ const opt = document.createElement('option'); opt.value = k; opt.textContent = VAR_LABELS[k] || k; varSelect.appendChild(opt); }
+varSelect.value = 'sleep_duration_hrs';
+let explorerChart = null;
+function renderExplorer(){
+  const key = varSelect.value;
+  const d = REPORT_DATA.binned_data[key];
+  const corrRow = REPORT_DATA.corr_table.find(r=>r.feature===key);
+  document.getElementById('varBadge').textContent = 'corr = ' + (corrRow? corrRow.corr.toFixed(3) : '—');
+  if(explorerChart) explorerChart.destroy();
+  explorerChart = new Chart(document.getElementById('explorerChart'), {
+    type:'line',
+    data:{ labels:d.labels, datasets:[{ label:'平均 cognitive_performance_score', data:d.means,
+      borderColor:'#0F766E', backgroundColor:'rgba(15,118,110,0.12)', fill:true, tension:.25, pointRadius:3, pointBackgroundColor:'#0F766E' }]},
+    options:{ plugins:{legend:{display:false}, title:{display:true, text:(VAR_LABELS[key]||key)+' 分箱後的目標變數平均值', font:{size:12}, color:'#4B5768'}},
+      scales:{x:{ticks:{font:{size:9},maxRotation:60,minRotation:30}}, y:{title:{display:true,text:'平均分數'}}} }
+  });
+}
+varSelect.addEventListener('change', renderExplorer);
+renderExplorer();
+
+const featTbody = document.getElementById('featEngTbody');
+for(const f of FEATURE_ENG){
+  const tr = document.createElement('tr');
+  const good = f.decision === '採用';
+  tr.innerHTML = `<td><code>${f.feature}</code></td><td>${f.desc}</td><td>${f.type}</td>
+    <td class="num">${f.gain.toFixed(4)}</td><td style="color:${good?'#0F766E':'#B4373B'};font-weight:600;">${f.decision}</td>`;
+  featTbody.appendChild(tr);
+}
+
+let modelSort = {key:'test_r2', dir:-1};
+function renderModel(){
+  const tbody = document.getElementById('modelTbody');
+  tbody.innerHTML='';
+  const sorted = [...MODEL_RESULTS].sort((a,b)=>{
+    let av=a[modelSort.key], bv=b[modelSort.key];
+    if(av===null) av=-Infinity; if(bv===null) bv=-Infinity;
+    if(typeof av === 'string') return modelSort.dir*av.localeCompare(bv);
+    return modelSort.dir*(bv-av);
+  });
+  for(const row of sorted){
+    const tr = document.createElement('tr');
+    if(row.model === 'XGBoost') tr.className = 'top-row';
+    else if(row.model === 'Stacking') tr.className = 'best-row';
+    tr.innerHTML = `<td>${row.model}</td>
+      <td class="num">${row.test_mae!==null? row.test_mae.toFixed(3): '—'}</td>
+      <td class="num">${row.test_acc.toFixed(2)}%</td>
+      <td class="num">${row.test_r2.toFixed(4)}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+function sortModel(key){ if(modelSort.key===key) modelSort.dir*=-1; else {modelSort.key=key; modelSort.dir=-1;} renderModel(); }
+renderModel();
+
+const MODEL_COLORS = {
+  "Stacking": 0x7C3AED, "XGBoost": 0x0F766E, "LightGBM": 0x059669,
+  "MLPRegressor": 0x2563EB, "Linear Regression": 0x64748B, "Ridge": 0x94A3B8,
+  "SVR (Linear)": 0xDB2777, "Keras DNN": 0xEA580C, "SVR (RBF)": 0xCA8A04,
+  "SVR (Poly)": 0xB45309, "KNN (Distance)": 0xDC2626, "KNN (Uniform)": 0xF87171
+};
+
+function buildModelBarChart(divId, field, unitSuffix){
+  var root = am5.Root.new(divId);
+  root.setThemes([am5themes_Animated.new(root)]);
+
+  var chart = root.container.children.push(am5xy.XYChart.new(root, {
+    panX:false, panY:false, wheelX:"panX", wheelY:"zoomX", layout: root.verticalLayout
+  }));
+
+  var cursor = chart.set("cursor", am5xy.XYCursor.new(root, {}));
+  cursor.lineY.set("visible", false);
+
+  var xRenderer = am5xy.AxisRendererX.new(root, { minGridDistance: 20 });
+  xRenderer.labels.template.setAll({ rotation:-90, centerY:am5.p50, centerX:am5.p100, paddingRight:15, fontSize:10 });
+  xRenderer.grid.template.setAll({ location:1 });
+
+  var xAxis = chart.xAxes.push(am5xy.CategoryAxis.new(root, {
+    categoryField:"model", renderer:xRenderer, tooltip: am5.Tooltip.new(root,{})
+  }));
+  var yAxis = chart.yAxes.push(am5xy.ValueAxis.new(root, { renderer: am5xy.AxisRendererY.new(root,{}) }));
+
+  var series = chart.series.push(am5xy.ColumnSeries.new(root, {
+    xAxis:xAxis, yAxis:yAxis, valueYField:"value", categoryXField:"model",
+    tooltip: am5.Tooltip.new(root, { labelText: "{categoryX}: {valueY}" + unitSuffix })
+  }));
+  series.columns.template.setAll({ cornerRadiusTL:4, cornerRadiusTR:4, strokeOpacity:0 });
+
+  series.columns.template.adapters.add("fill", function(fill, target){
+    var name = target.dataItem.get("categoryX");
+    return am5.color(MODEL_COLORS[name] || 0x8794A6);
+  });
+  series.columns.template.adapters.add("stroke", function(stroke, target){
+    var name = target.dataItem.get("categoryX");
+    return am5.color(MODEL_COLORS[name] || 0x8794A6);
+  });
+
+  var chartData = MODEL_RESULTS.filter(r => r[field] !== null).map(r => ({ model: r.model, value: r[field] }));
+  xAxis.data.setAll(chartData);
+  series.data.setAll(chartData);
+  series.appear(1000);
+  chart.appear(1000, 100);
+}
+
+am5.ready(function(){
+  buildModelBarChart("maeChart", "test_mae", "");
+  buildModelBarChart("accChart", "test_acc", "%");
+  buildModelBarChart("r2Chart", "test_r2", "");
+});
+
+function erf(x){
+  const sign = x<0?-1:1; x=Math.abs(x);
+  const a1=0.254829592,a2=-0.284496736,a3=1.421413741,a4=-1.453152027,a5=1.061405429,p=0.3275911;
+  const t=1/(1+p*x);
+  const y=1-(((((a5*t+a4)*t)+a3)*t+a2)*t+a1)*t*Math.exp(-x*x);
+  return sign*y;
+}
+const bestModel = MODEL_RESULTS.reduce((a,b)=> (b.test_r2>a.test_r2? b:a));
+const sigma = bestModel.test_mae / Math.sqrt(2/Math.PI);
+const tolerances = [3,4,5,6,7,8,10,12,15,20];
+const theoretical = tolerances.map(t=> Math.round(erf((t/sigma)/Math.sqrt(2))*1000)/10);
+
+new Chart(document.getElementById('toleranceChart'), {
+  type:'line',
+  data:{ labels: tolerances.map(t=>'±'+t),
+    datasets:[
+      {label:'理論命中率(常態分布反推)', data:theoretical, borderColor:'#0F766E', backgroundColor:'transparent', tension:.3, pointRadius:4, pointBackgroundColor:'#0F766E'},
+     {label:'實測命中率', data:[null,null,62.07,null,null,null,91.88,null,null,null], borderColor:'#E11D48', backgroundColor:'#E11D48', pointRadius:12, pointBorderColor:'#FFFFFF', pointBorderWidth:3, showLine:false, pointStyle:'circle'}
+    ]},
+  options:{ plugins:{legend:{position:'bottom', labels:{font:{size:11}}}},
+    scales:{y:{min:0,max:100,title:{display:true,text:'命中率(%)'}}, x:{title:{display:true,text:'容忍範圍(分)'}}} }
+});
+document.getElementById('pop-std').textContent = ys.std;
+</script>
+</body>
+</html>
+"""
+
+# height 設定報告的總顯示高度(像素)。報告內容很長(6個章節+多張圖表),
+# 如果之後又新增章節或圖表導致下方被切掉,把這個數字調大即可。
+components.html(REPORT_HTML, height=9000, scrolling=True)
