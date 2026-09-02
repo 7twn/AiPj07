@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>認知行為分數預測</title>
+<script src="https://cdn.amcharts.com/lib/5/index.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/xy.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/radar.js"></script>
+<script src="https://cdn.amcharts.com/lib/5/themes/Animated.js"></script>
+<style>
+:root{
+  --bg:#F5F7FA;
+  --surface:#FFFFFF;
+  --border:#E1E7EF;
+  --ink:#16202E;
+  --body:#4B5768;
+  --muted:#8794A6;
+  --teal:#0F766E;
+  --teal-soft:#E6F3F1;
+  --amber:#C2650A;
+  --amber-soft:#FBEEE0;
+  --red:#B4373B;
+  --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --sans: 'IBM Plex Sans', -apple-system, sans-serif;
+}
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:var(--sans);background:var(--bg);color:var(--body);line-height:1.6;font-size:15px;}
+.wrap{max-width:720px;margin:0 auto;padding:40px 20px 80px;}
+
+header{margin-bottom:32px;}
+header .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);margin-bottom:8px;}
+header h1{font-size:26px;font-weight:700;color:var(--ink);letter-spacing:-.01em;margin-bottom:8px;}
+header p{font-size:14px;color:var(--muted);max-width:560px;}
+
+.steps{display:flex;gap:8px;margin-bottom:28px;}
+.step-dot{flex:1;height:4px;border-radius:2px;background:var(--border);transition:.2s;}
+.step-dot.active{background:var(--teal);}
+.step-dot.done{background:#5EB8AC;}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:28px;}
+.panel{display:none;}
+.panel.active{display:block;}
+
+.field{margin-bottom:22px;}
+.field:last-child{margin-bottom:0;}
+.field label.title{display:block;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:4px;}
+.field .help{font-size:12.5px;color:var(--muted);margin-bottom:8px;line-height:1.5;}
+.field input[type="number"], .field select{
+  width:100%;font-family:var(--sans);font-size:14px;padding:10px 12px;border-radius:8px;
+  border:1px solid var(--border);background:#fff;color:var(--ink);
+}
+.field input[type="number"]:focus, .field select:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-soft);}
+.field .error{font-size:12.5px;color:var(--red);margin-top:6px;display:none;}
+.field .error.show{display:block;}
+
+.slider-row{display:flex;align-items:center;gap:12px;}
+.slider-row input[type="range"]{flex:1;accent-color:var(--teal);}
+.slider-row .val{font-family:var(--mono);font-size:15px;font-weight:600;color:var(--ink);min-width:44px;text-align:right;}
+
+.toggle-group{display:flex;gap:8px;}
+.toggle-btn{
+  flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:#fff;
+  font-family:var(--sans);font-size:13.5px;color:var(--body);cursor:pointer;text-align:center;transition:.15s;
+}
+.toggle-btn.selected{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600;}
+
+.field-group-title{font-size:12px;font-family:var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--teal);margin:28px 0 14px;padding-top:20px;border-top:1px solid var(--border);}
+.field-group-title:first-child{margin-top:0;padding-top:0;border-top:none;}
+
+.actions{display:flex;justify-content:space-between;gap:12px;margin-top:32px;}
+button.btn{
+  font-family:var(--sans);font-size:14.5px;font-weight:600;padding:12px 24px;border-radius:8px;
+  border:1px solid var(--border);background:#fff;color:var(--ink);cursor:pointer;transition:.15s;
+}
+button.btn:hover{background:var(--bg);}
+button.btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;}
+button.btn.primary:hover{background:#0C5F58;}
+button.btn:disabled{opacity:.4;cursor:not-allowed;}
+
+table.review{width:100%;border-collapse:collapse;font-size:13.5px;margin-bottom:8px;}
+table.review th{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:8px 6px;border-bottom:2px solid var(--border);}
+table.review td{padding:9px 6px;border-bottom:1px solid var(--border);color:var(--body);}
+table.review td.val{text-align:right;font-family:var(--mono);color:var(--ink);font-weight:600;}
+
+.result-wrap{text-align:center;}
+#gaugeChart{width:100%;height:320px;}
+.result-band{display:inline-block;font-family:var(--mono);font-size:13px;padding:6px 16px;border-radius:20px;margin-top:8px;font-weight:600;}
+.result-mae{font-size:12.5px;color:var(--muted);margin-top:18px;line-height:1.6;}
+.result-mae code{font-family:var(--mono);background:#EEF2F6;padding:1px 6px;border-radius:4px;color:var(--ink);}
+
+.callout{border-left:3px solid var(--amber);background:var(--amber-soft);padding:12px 16px;border-radius:0 6px 6px 0;font-size:13px;color:#5C3A0E;margin-top:20px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Sleep Health &amp; Cognitive Performance</div>
+    <h1>認知行為分數預測</h1>
+    <p>根據睡眠健康分析報告中找出的關鍵特徵所建立的簡化評估工具。填入以下項目，即可初步估算認知表現分數（0～100分）。</p>
+  </header>
+
+  <div class="steps">
+    <div class="step-dot active" id="dot-1"></div>
+    <div class="step-dot" id="dot-2"></div>
+    <div class="step-dot" id="dot-3"></div>
+  </div>
+
+  <div class="card">
+
+    <!-- ===== STEP 1: 填表 ===== -->
+    <div class="panel active" id="panel-1">
+
+      <div class="field-group-title">睡眠狀況</div>
+
+      <div class="field">
+        <label class="title">睡眠品質分數</label>
+        <div class="help">整體睡眠品質的主觀評分，1分代表非常差，10分代表非常好。</div>
+        <div class="slider-row">
+          <input type="range" id="in-quality" min="1" max="10" step="1" value="7">
+          <span class="val" id="out-quality">7</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title">平均睡眠時數（小時）</label>
+        <div class="help">平均每晚實際睡眠的時數，不含躺床但未入睡的時間。</div>
+        <div class="slider-row">
+          <input type="range" id="in-duration" min="3" max="11" step="0.5" value="7">
+          <span class="val" id="out-duration">7.0</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title">REM 睡眠比例（%）</label>
+        <div class="help">快速動眼期（REM）睡眠占總睡眠時間的百分比，一般成人約落在 15～25% 之間。</div>
+        <div class="slider-row">
+          <input type="range" id="in-rem" min="5" max="35" step="1" value="20">
+          <span class="val" id="out-rem">20%</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title">睡眠障礙風險</label>
+        <div class="help">針對失眠、睡眠呼吸中止等睡眠障礙的整體風險評估等級。</div>
+        <select id="in-disorder">
+          <option value="0" selected>健康（無明顯風險）</option>
+          <option value="1">輕度</option>
+          <option value="2">中度</option>
+          <option value="3">重度</option>
+        </select>
+      </div>
+
+      <div class="field-group-title">生活與心理狀態</div>
+
+      <div class="field">
+        <label class="title">壓力分數</label>
+        <div class="help">近期主觀壓力感受，1分代表幾乎無壓力，10分代表壓力極大。</div>
+        <div class="slider-row">
+          <input type="range" id="in-stress" min="1" max="10" step="1" value="5">
+          <span class="val" id="out-stress">5</span>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title">今天有運動嗎？</label>
+        <div class="help">當天是否有進行任何形式的運動（不限強度或時長）。</div>
+        <div class="toggle-group" id="in-exercise">
+          <div class="toggle-btn" data-value="1">有運動</div>
+          <div class="toggle-btn selected" data-value="0">沒有運動</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title">睡前酒精攝取量（單位）</label>
+        <div class="help">睡前飲用的酒精單位數，一個單位約等於一杯啤酒或一小杯烈酒；沒有飲酒請填 0。</div>
+        <input type="number" id="in-alcohol" min="0" max="15" step="1" value="0">
+        <div class="error" id="err-alcohol">請輸入 0 以上的數字</div>
+      </div>
+
+      <div class="field">
+        <label class="title">是否從事輪班工作？</label>
+        <div class="help">是否需要在非固定時段上班（例如夜班、輪班制）。</div>
+        <div class="toggle-group" id="in-shift">
+          <div class="toggle-btn" data-value="1">是</div>
+          <div class="toggle-btn selected" data-value="0">否</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title">是否有憂鬱相關症狀？</label>
+        <div class="help">是否曾被診斷、或自覺有憂鬱相關症狀。</div>
+        <div class="toggle-group" id="in-depression">
+          <div class="toggle-btn" data-value="1">是</div>
+          <div class="toggle-btn selected" data-value="0">否</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title">是否有焦慮相關症狀？</label>
+        <div class="help">是否曾被診斷、或自覺有焦慮相關症狀。</div>
+        <div class="toggle-group" id="in-anxiety">
+          <div class="toggle-btn" data-value="1">是</div>
+          <div class="toggle-btn selected" data-value="0">否</div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="title">填寫當下是平日還是週末？</label>
+        <div class="help">平日與週末的作息模式不同，會影響預測結果。</div>
+        <div class="toggle-group" id="in-daytype">
+          <div class="toggle-btn selected" data-value="1">平日</div>
+          <div class="toggle-btn" data-value="0">週末</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <span></span>
+        <button class="btn primary" id="btn-to-review">下一步：確認填寫內容</button>
+      </div>
+    </div>
+
+    <!-- ===== STEP 2: 審核表 ===== -->
+    <div class="panel" id="panel-2">
+      <h3 style="font-size:16px;color:var(--ink);margin-bottom:16px;">請確認以下填寫內容</h3>
+      <table class="review">
+        <thead><tr><th>項目</th><th style="text-align:right;">您的輸入</th></tr></thead>
+        <tbody id="review-tbody"></tbody>
+      </table>
+      <div class="callout">確認無誤後按下「計算預測分數」；如需修改，請按「上一步」返回表單。</div>
+      <div class="actions">
+        <button class="btn" id="btn-back-to-form">上一步：返回修改</button>
+        <button class="btn primary" id="btn-calculate">計算預測分數</button>
+      </div>
+    </div>
+
+    <!-- ===== STEP 3: 結果 ===== -->
+    <div class="panel" id="panel-3">
+      <div class="result-wrap">
+        <div id="gaugeChart"></div>
+        <div class="result-band" id="result-band-label"></div>
+        <div class="result-mae">
+          此預測值來自簡化公式模型（12項關鍵特徵），在測試資料上的平均誤差約為 <code>±5.2</code> 分，
+          實際分數有約 <code>90%</code> 的機率落在預測值 <code>±10</code> 分以內。
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn" id="btn-restart">重新填寫</button>
+        <span></span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ========== 表單狀態管理 ==========
+function bindSlider(inputId, outId, formatter){
+  const input = document.getElementById(inputId);
+  const out = document.getElementById(outId);
+  const update = () => { out.textContent = formatter ? formatter(input.value) : input.value; };
+  input.addEventListener('input', update);
+  update();
+}
+bindSlider('in-quality', 'out-quality');
+bindSlider('in-duration', 'out-duration', v => parseFloat(v).toFixed(1));
+bindSlider('in-rem', 'out-rem', v => v + '%');
+bindSlider('in-stress', 'out-stress');
+
+function bindToggle(groupId){
+  const group = document.getElementById(groupId);
+  group.querySelectorAll('.toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      group.querySelectorAll('.toggle-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+}
+['in-exercise','in-shift','in-depression','in-anxiety','in-daytype'].forEach(bindToggle);
+
+function getToggleValue(groupId){
+  return document.querySelector('#' + groupId + ' .toggle-btn.selected').dataset.value;
+}
+
+function goToStep(n){
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('panel-' + n).classList.add('active');
+  document.querySelectorAll('.step-dot').forEach((d, i) => {
+    d.classList.toggle('active', i === n - 1);
+    d.classList.toggle('done', i < n - 1);
+  });
+}
+
+// ========== 第一步 -> 第二步:驗證並產生審核表 ==========
+document.getElementById('btn-to-review').addEventListener('click', () => {
+  const alcoholInput = document.getElementById('in-alcohol');
+  const alcoholVal = parseFloat(alcoholInput.value);
+  const errEl = document.getElementById('err-alcohol');
+  if (isNaN(alcoholVal) || alcoholVal < 0) {
+    errEl.classList.add('show');
+    alcoholInput.focus();
+    return;
+  }
+  errEl.classList.remove('show');
+
+  const disorderLabels = {'0':'健康（無明顯風險）','1':'輕度','2':'中度','3':'重度'};
+  const yn = v => v === '1' ? '是' : '否';
+
+  const rows = [
+    ['睡眠品質分數', document.getElementById('in-quality').value + ' 分'],
+    ['平均睡眠時數', document.getElementById('in-duration').value + ' 小時'],
+    ['REM 睡眠比例', document.getElementById('in-rem').value + ' %'],
+    ['睡眠障礙風險', disorderLabels[document.getElementById('in-disorder').value]],
+    ['壓力分數', document.getElementById('in-stress').value + ' 分'],
+    ['今天有運動', getToggleValue('in-exercise') === '1' ? '有運動' : '沒有運動'],
+    ['睡前酒精攝取量', alcoholVal + ' 單位'],
+    ['是否輪班工作', yn(getToggleValue('in-shift'))],
+    ['是否有憂鬱症狀', yn(getToggleValue('in-depression'))],
+    ['是否有焦慮症狀', yn(getToggleValue('in-anxiety'))],
+    ['平日／週末', getToggleValue('in-daytype') === '1' ? '平日' : '週末'],
+  ];
+
+  const tbody = document.getElementById('review-tbody');
+  tbody.innerHTML = '';
+  rows.forEach(([label, val]) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td>${label}</td><td class="val">${val}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  goToStep(2);
+});
+
+document.getElementById('btn-back-to-form').addEventListener('click', () => goToStep(1));
+document.getElementById('btn-restart').addEventListener('click', () => goToStep(1));
+
+// ========== 簡化模型公式(原始單位係數,來自報告第08節) ==========
+const COEF = {
+  intercept: -77.4968,
+  sleep_quality_score: 7.3588,
+  sleep_duration_hrs: 24.7238,
+  sleep_duration_squared: -1.6497,
+  rem_percentage: 1.1353,
+  stress_score: -1.3921,
+  exercise_day: 9.5984,
+  alcohol_units_before_bed: -2.6991,
+  shift_work: -3.0092,
+  mental_health_Depression: -5.4205,
+  mental_health_Anxiety: -3.0579,
+  sleep_disorder_risk: -1.1815,
+  is_weekday: -3.4806
+};
+
+function computeScore(){
+  const duration = parseFloat(document.getElementById('in-duration').value);
+  const quality = parseFloat(document.getElementById('in-quality').value);
+  const rem = parseFloat(document.getElementById('in-rem').value);
+  const stress = parseFloat(document.getElementById('in-stress').value);
+  const exercise = parseFloat(getToggleValue('in-exercise'));
+  const alcohol = parseFloat(document.getElementById('in-alcohol').value);
+  const shift = parseFloat(getToggleValue('in-shift'));
+  const depression = parseFloat(getToggleValue('in-depression'));
+  const anxiety = parseFloat(getToggleValue('in-anxiety'));
+  const disorder = parseFloat(document.getElementById('in-disorder').value);
+  const weekday = parseFloat(getToggleValue('in-daytype'));
+
+  let score = COEF.intercept
+    + COEF.sleep_quality_score * quality
+    + COEF.sleep_duration_hrs * duration
+    + COEF.sleep_duration_squared * duration * duration
+    + COEF.rem_percentage * rem
+    + COEF.stress_score * stress
+    + COEF.exercise_day * exercise
+    + COEF.alcohol_units_before_bed * alcohol
+    + COEF.shift_work * shift
+    + COEF.mental_health_Depression * depression
+    + COEF.mental_health_Anxiety * anxiety
+    + COEF.sleep_disorder_risk * disorder
+    + COEF.is_weekday * weekday;
+
+  return score;
+}
+
+function bandInfo(score){
+  if (score < 40) return { label: '需加強', color: '#B4373B', bg: '#FBE9E9' };
+  if (score < 60) return { label: '中等', color: '#C2650A', bg: '#FBEEE0' };
+  if (score < 80) return { label: '良好', color: '#0F766E', bg: '#E6F3F1' };
+  return { label: '優秀', color: '#166534', bg: '#E3F5E9' };
+}
+
+// ========== 第二步 -> 第三步:計算並畫量表 ==========
+let gaugeRoot = null;
+let clockHand = null;
+let gaugeAxis = null;
+let gaugeDataItem = null;
+let gaugeLabel = null;
+
+document.getElementById('btn-calculate').addEventListener('click', () => {
+  const rawScore = computeScore();
+  const displayScore = Math.max(0, Math.min(100, rawScore));
+
+  goToStep(3);
+
+  if (!gaugeRoot) {
+    buildGauge();
+  }
+  gaugeDataItem.animate({ key: "value", to: displayScore, duration: 900, easing: am5.ease.out(am5.ease.cubic) });
+
+  const info = bandInfo(displayScore);
+  const bandLabelEl = document.getElementById('result-band-label');
+  bandLabelEl.textContent = `評估等級：${info.label}（預測分數 ${displayScore.toFixed(1)} 分）`;
+  bandLabelEl.style.background = info.bg;
+  bandLabelEl.style.color = info.color;
+});
+
+function buildGauge(){
+  gaugeRoot = am5.Root.new("gaugeChart");
+  gaugeRoot.setThemes([am5themes_Animated.new(gaugeRoot)]);
+
+  var chart = gaugeRoot.container.children.push(
+    am5radar.RadarChart.new(gaugeRoot, {
+      panX: false, panY: false,
+      startAngle: 180, endAngle: 360
+    })
+  );
+
+  var axisRenderer = am5radar.AxisRendererCircular.new(gaugeRoot, { innerRadius: -40 });
+  axisRenderer.grid.template.setAll({ stroke: gaugeRoot.interfaceColors.get("background"), visible: true, strokeOpacity: 0.6 });
+
+  gaugeAxis = chart.xAxes.push(am5xy.ValueAxis.new(gaugeRoot, {
+    maxDeviation: 0, min: 0, max: 100, strictMinMax: true,
+    renderer: axisRenderer
+  }));
+
+  function createBand(start, end, color, label){
+    var rangeDataItem = gaugeAxis.makeDataItem({ value: start, endValue: end });
+    gaugeAxis.createAxisRange(rangeDataItem);
+    rangeDataItem.get("axisFill").setAll({ fill: am5.color(color), fillOpacity: 1, visible: true });
+    rangeDataItem.get("label").setAll({ text: label, inside: true, radius: 15, fontSize: "0.75em", fill: am5.color(0xffffff) });
+  }
+  createBand(0, 40, 0xB4373B, "需加強");
+  createBand(40, 60, 0xC2650A, "中等");
+  createBand(60, 80, 0x0F766E, "良好");
+  createBand(80, 100, 0x166534, "優秀");
+
+  gaugeDataItem = gaugeAxis.makeDataItem({});
+  clockHand = am5radar.ClockHand.new(gaugeRoot, { pinRadius: 12, radius: am5.percent(96), bottomWidth: 24 });
+  clockHand.pin.setAll({ fill: am5.color(0x16202E) });
+  clockHand.hand.setAll({ fill: am5.color(0x16202E) });
+  var bullet = gaugeDataItem.set("bullet", am5xy.AxisBullet.new(gaugeRoot, { sprite: clockHand }));
+  gaugeAxis.createAxisRange(gaugeDataItem);
+
+  gaugeLabel = chart.radarContainer.children.push(am5.Label.new(gaugeRoot, {
+    fill: am5.color(0x16202E),
+    centerX: am5.percent(50),
+    textAlign: "center",
+    centerY: am5.percent(60),
+    fontSize: "2.2em",
+    fontFamily: "IBM Plex Mono, monospace",
+    fontWeight: "600"
+  }));
+
+  gaugeDataItem.set("value", 0);
+  bullet.get("sprite").on("rotation", function () {
+    var value = gaugeAxis.positionToValue(gaugeDataItem.get("position"));
+    gaugeLabel.set("text", Math.round(value).toString());
+  });
+}
+</script>
+</body>
+</html>
